@@ -71,6 +71,7 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -lsupc++
     -Wl,--end-group
     -Wl,--print-memory-usage
+    -Wl,-z,max-page-size=8
 )
 ```
 
@@ -78,12 +79,30 @@ You do **not** need to repeat `-mcpu`/`-mfpu`/`-mfloat-abi` here — the CPU fil
 
 Useful linker extras, add only if your project needs them:
 - `-u _printf_float --specs=nosys.specs` — `printf`/`scanf` float support with newlib
-- `-Wl,-z,max-page-size=8` — fixes GNU ld over-aligning output sections (seen on some newer binutils/cores where the default page size otherwise forces 1-8kB alignment that no linker script setting can override)
+- `-Wl,-z,max-page-size=8` — fixes GNU ld over-aligning output sections (seen on some newer binutils/cores where the default page size otherwise forces `64kB` alignment that no linker script setting can override)
 
 ## 4. Example `CMakeLists.txt`
 
-Full example project wiring the pieces above together. It assumes headers in `include/`, sources in `source/`, and a linker
-script `Linker.ld`, all next to the `CMakeLists.txt`:
+Full example project wiring the pieces above together. It assumes headers in `include/`, sources in `source/`, and a linker script `Linker.ld`, all next to the `CMakeLists.txt`.
+
+For the folder tree:
+
+```
+project/
+|- cmake/
+|- source/
+|   - source.c
+|   - startup.s
+|   - ...
+|- include/
+|   - file.h
+|   - ...
+|- linker/
+|   - linkerscript.ld
+|- CMakeLists.txt
+```
+
+`CMakeLists.txt` becomes:
 
 ```cmake
 cmake_minimum_required(VERSION 3.22)
@@ -115,7 +134,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
-    -T${CMAKE_CURRENT_LIST_DIR}/Linker.ld
+    -T${CMAKE_CURRENT_LIST_DIR}/linker/linkerscript.ld
     -Wl,-Map=${CMAKE_PROJECT_NAME}.map
     -Wl,--start-group
     -lc
@@ -124,5 +143,6 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -lsupc++
     -Wl,--end-group
     -Wl,--print-memory-usage
+    -Wl,-z,max-page-size=8
 )
 ```
