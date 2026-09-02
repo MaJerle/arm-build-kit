@@ -28,8 +28,7 @@ For example `-fdata-sections -ffunction-sections -Wl,--gc-sections` and many oth
 ## 2. CPU file (in your `CMakeLists.txt`)
 
 Pick the file matching your MCU's core and `include()` it **before** `add_executable()`.
-It sets `CMAKE_C_FLAGS` / `CMAKE_CXX_FLAGS` / `CMAKE_ASM_FLAGS` (and their Debug/Release variants) with the correct
-`-mcpu` / `-mfpu` / `-mfloat-abi` for that core:
+It sets `CMAKE_C_FLAGS` / `CMAKE_CXX_FLAGS` / `CMAKE_ASM_FLAGS` (and their Debug/Release variants) with the correct `-mcpu` / `-mfpu` / `-mfloat-abi` for that core:
 
 ```cmake
 # Include the compiler file for your core config
@@ -83,7 +82,7 @@ Useful linker extras, add only if your project needs them:
 
 ## 4. Example `CMakeLists.txt`
 
-Full example project wiring the pieces above together. It assumes headers in `include/`, sources in `source/`, and a linker script `Linker.ld`, all next to the `CMakeLists.txt`.
+Full example project wiring the pieces above together. It assumes headers in `include/`, sources in `source/`, and a linker script `Linker.ld`, all next to the `CMakeLists.txt`. Macros, include paths and sources are collected into `symbols_SYMB`, `include_DIRS` and `sources_SRCS` variables and passed to the corresponding `target_*()` calls.
 
 For the folder tree:
 
@@ -112,27 +111,35 @@ project(example_project C CXX ASM)
 # Include the compiler file for your core config
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/compiler-gcc-cortex-m4.cmake)
 
-# Create executable
-add_executable(${CMAKE_PROJECT_NAME})
-
 # Glob all sources in the "source" folder.
 # Prefer listing files explicitly in real projects -- CMake can't see new/removed
 # files added to a glob until you re-run configure -- but it's handy for a quick example.
-file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE sources_SRCS CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_LIST_DIR}/source/*.c
     ${CMAKE_CURRENT_LIST_DIR}/source/*.cpp
     ${CMAKE_CURRENT_LIST_DIR}/source/*.s
     ${CMAKE_CURRENT_LIST_DIR}/source/*.S
 )
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    ${PROJECT_SOURCES}
-)
-
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+# Include paths
+set(include_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
+# Preprocessor macros (no -D prefix -- CMake adds it)
+set(symbols_SYMB
+    MY_SYMB_1
+    MY_SYMB_2
+    "MY_SYMB_WITH_VALUE=10"
+)
+
+# Create executable
+add_executable(${CMAKE_PROJECT_NAME})
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${sources_SRCS})
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${include_DIRS})
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ${symbols_SYMB})
+
+# Configure the linker
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -T${CMAKE_CURRENT_LIST_DIR}/linker/linkerscript.ld
     -Wl,-Map=${CMAKE_PROJECT_NAME}.map
