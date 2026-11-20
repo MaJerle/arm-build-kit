@@ -1,0 +1,26 @@
+# Base Python environment baked into the arm-build-kit Docker image (/opt/venv).
+# Kept minimal on purpose - projects add their own packages via requirements-build.txt
+# (see install-build-requirements in the image).
+# After editing, run `uv lock` and commit the updated uv.lock.
+[project]
+name = "arm-build-kit"
+version = "0.1.0"
+description = "Python tooling baked into the arm-build-kit Docker image"
+requires-python = ">=3.13"
+dependencies = [
+    # Firmware image handling
+    "intelhex",
+    "pycryptodome",
+    "elf-size-analyze",
+    # Device communication
+    "pyserial",
+    "pyserial-asyncio",
+    "ftd2xx",
+    # Data, config, tooling
+    "numpy",
+    "matplotlib",
+    "voluptuous",
+]
+
+[tool.uv]
+package = false

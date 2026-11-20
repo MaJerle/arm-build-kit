@@ -153,3 +153,95 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -Wl,-z,max-page-size=8
 )
 ```
+
+## 5. Docker build image
+
+A ready-to-use build image is published to GitHub Container Registry for `linux/amd64` and `linux/arm64` (runs natively on Apple Silicon):
+
+```
+ghcr.io/majerle/arm-build-kit:latest     # rebuilt on every push to main
+ghcr.io/majerle/arm-build-kit:v1.0.0     # one per GitHub release (also 1.0.0 and 1.0)
+```
+
+Pin a release tag in CI. Use `latest` only for trying things out.
+
+What's inside:
+- Arm GNU Toolchain `15.2.rel1` (`arm-none-eabi-*`) on `PATH`
+- `cmake`, `ninja`, `make`, `git`, `clang-format`, `clang-tidy`, `cppcheck`
+- Python 3.14 venv at `/opt/venv` (first on `PATH`) with a minimal base set from [pyproject.toml](pyproject.toml): intelhex, pycryptodome, elf-size-analyze, pyserial, numpy, matplotlib, ...
+- `install-build-requirements` to add your project's own Python packages (see below)
+- This repo's CMake files at `/opt/arm-build-kit/cmake`, exposed as `$ARM_BUILD_KIT_CMAKE_DIR`
+
+To use the baked-in CMake files instead of vendoring a copy:
+
+```json
+"toolchainFile": "$env{ARM_BUILD_KIT_CMAKE_DIR}/compiler-gcc-arm-none-eabi.cmake"
+```
+
+```cmake
+include($ENV{ARM_BUILD_KIT_CMAKE_DIR}/compiler-gcc-cortex-m4.cmake)
+```
+
+### Run locally
+
+Mount the project at the same path inside the container so that the absolute paths CMake caches stay valid on both the host and the container:
+
+```bash
+docker run --rm -it -v "$PWD":"$PWD" -w "$PWD" --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    ghcr.io/majerle/arm-build-kit:latest \
+    bash -c "cmake --preset default && cmake --build --preset default"
+```
+
+### GitHub Actions
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/majerle/arm-build-kit:v1.0.0
+    steps:
+      - uses: actions/checkout@v4
+      - run: install-build-requirements
+      - run: cmake --preset default && cmake --build --preset default
+```
+
+### Dev container
+
+```json
+{
+    "image": "ghcr.io/majerle/arm-build-kit:latest",
+    "postCreateCommand": "install-build-requirements"
+}
+```
+
+### Project-specific Python packages
+
+The image ships only a small base set of Python packages. Put anything else your project needs into a `requirements-build.txt` in the project root:
+
+```
+protobuf==6.33.6
+nanopb
+grpcio-tools
+```
+
+It is installed into `/opt/venv` on top of the base set:
+- `docker run`: automatically, by the image entrypoint, when the file exists in the working directory (`-w`).
+- GitHub Actions `container:` jobs and dev containers: these bypass the entrypoint, so call `install-build-requirements` yourself (as in the examples above).
+
+`install-build-requirements` looks for `$ARM_BUILD_KIT_REQUIREMENTS` (default `requirements-build.txt`) and does nothing if that file is missing. It also takes an explicit path: `install-build-requirements tools/requirements.txt`.
+
+For heavy dependency sets you don't want to reinstall on every CI run, extend the image instead:
+
+```dockerfile
+FROM ghcr.io/majerle/arm-build-kit:v1.0.0
+COPY requirements-build.txt /tmp/
+RUN install-build-requirements /tmp/requirements-build.txt
+```
+
+### Updating the image
+
+- Toolchain: change `ARM_TOOLCHAIN_VERSION` in the [Dockerfile](Dockerfile).
+- Python packages: edit [pyproject.toml](pyproject.toml), run `uv lock`, and commit `uv.lock`.
+- Push to `main` to update `latest`. Publish a GitHub release to create a versioned tag.
+
+> The first publish creates a **private** package on GHCR. To let other projects pull it without logging in, set its visibility to public in the package settings.

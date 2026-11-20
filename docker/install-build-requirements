@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Install project-specific Python packages into the image's /opt/venv.
+#
+# Usage:
+#   install-build-requirements                 # uses $ARM_BUILD_KIT_REQUIREMENTS
+#                                              # (default: requirements-build.txt in the current dir),
+#                                              # silently skips if that file does not exist
+#   install-build-requirements path/to/req.txt # explicit file, error if missing
+set -euo pipefail
+
+if [ $# -gt 0 ]; then
+    REQ="$1"
+    if [ ! -f "$REQ" ]; then
+        echo "install-build-requirements: '$REQ' not found" >&2
+        exit 1
+    fi
+else
+    REQ="${ARM_BUILD_KIT_REQUIREMENTS:-requirements-build.txt}"
+    if [ ! -f "$REQ" ]; then
+        exit 0
+    fi
+fi
+
+echo "install-build-requirements: installing packages from '$REQ'"
+uv pip install --python /opt/venv/bin/python -r "$REQ"

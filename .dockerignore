@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!.python-version
+!cmake/
+!docker/
